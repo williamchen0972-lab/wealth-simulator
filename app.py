@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 
 # 設定網頁配置
-st.set_page_config(page_title="保險業務超人工具箱", layout="mobile")
+st.set_page_config(page_title="保險業務超人工具箱", layout="centered")
 
 # --- CSS 樣式優化 (讓手機版更好看) ---
 st.markdown("""
