@@ -1,153 +1,207 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
 
 # 設定網頁配置
-st.set_page_config(page_title="保險業務超人工具箱", layout="centered")
+st.set_page_config(page_title="壽險現金流 PK 系統", layout="wide")
 
-# --- CSS 樣式優化 (讓手機版更好看) ---
+# --- CSS 優化 ---
 st.markdown("""
     <style>
-    .big-font { font-size:20px !important; font-weight: bold; }
-    .card {
-        background-color: #f0f2f6;
-        padding: 20px;
-        border-radius: 10px;
-        margin-bottom: 10px;
-        text-align: center;
+    .stApp { background-color: #f8f9fa; }
+    .header-style { font-size:24px; font-weight:bold; color:#1f77b4; margin-bottom:10px; }
+    .highlight-card { 
+        background-color: white; 
+        padding: 20px; 
+        border-radius: 10px; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
     }
-    .greeting-text {
-        font-size: 24px;
-        color: #1f77b4;
-        font-family: "Microsoft JhengHei", sans-serif;
-    }
+    .winner-text { color: #d62728; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("💼 保險業務超人工具箱")
-st.caption("專為台灣保險菁英設計的銷售神器")
-
-# 建立分頁
-tab1, tab2 = st.tabs(["⚔️ 保單 PK 擂台", "☀️ 早安名片生成"])
+st.title("🛡️ 壽險計畫書 PK 引擎 (旗艦版)")
+st.caption("內建市場熱門神單數據，無須建議書也能快速比較")
 
 # ==========================================
-# 功能 1: 保單 PK 擂台 (解決競品比較痛點)
+# 核心資料庫：熱門神單預設值 (Golden Samples)
+# 這裡的數據是模擬 DM 上的「40歲男性/6年期/年繳1萬美金」的案例
 # ==========================================
-with tab1:
-    st.header("產品優勢對決")
-    st.info("💡 輸入兩張保單的關鍵數據，立刻生成對比圖表，讓客戶一眼看出優勢！")
-
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("🛡️ 我方產品 (凱基)")
-        p1_name = st.text_input("產品名稱 A", value="凱基-美元傳承")
-        p1_irr = st.number_input("預估 IRR (%)", value=3.8, key="p1_irr")
-        p1_premium = st.number_input("總繳保費 (萬)", value=100, key="p1_prem")
-        p1_protection = st.number_input("身故保障 (萬)", value=350, key="p1_prot")
-        
-    with col2:
-        st.subheader("⚔️ 他家產品 (競品)")
-        p2_name = st.text_input("產品名稱 B", value="他牌-美元儲蓄")
-        p2_irr = st.number_input("預估 IRR (%)", value=3.2, key="p2_irr")
-        p2_premium = st.number_input("總繳保費 (萬)", value=100, key="p2_prem")
-        p2_protection = st.number_input("身故保障 (萬)", value=300, key="p2_prot")
-
-    # 視覺化按鈕
-    if st.button("🚀 生成 PK 分析圖"):
-        st.markdown("---")
-        
-        # 1. 關鍵指標長條圖
-        categories = ['預估 IRR (%)', '槓桿倍數 (保障/保費)']
-        
-        # 計算槓桿
-        lev1 = p1_protection / p1_premium if p1_premium > 0 else 0
-        lev2 = p2_protection / p2_premium if p2_premium > 0 else 0
-        
-        fig = go.Figure()
-        fig.add_trace(go.Bar(
-            x=categories,
-            y=[p1_irr, lev1],
-            name=p1_name,
-            marker_color='#FF4B4B'
-        ))
-        fig.add_trace(go.Bar(
-            x=categories,
-            y=[p2_irr, lev2],
-            name=p2_name,
-            marker_color='#cccccc'
-        ))
-        
-        fig.update_layout(
-            title="關鍵指標對決",
-            barmode='group',
-            height=300
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # 2. 差異分析結論 (AI 話術)
-        diff_irr = p1_irr - p2_irr
-        diff_prot = p1_protection - p2_protection
-        
-        st.success(f"### 🏆 {p1_name} 勝出關鍵：")
-        if diff_irr > 0:
-            st.write(f"✅ **獲利能力更強：** 長期複利效果高出競品 **{diff_irr:.1f}%**，時間越長差距越大。")
-        if diff_prot > 0:
-            st.write(f"✅ **保障槓桿更高：** 同樣保費下，我們多送您 **{diff_prot} 萬** 的身故保障。")
-        
-        st.caption("截圖此畫面即可傳送給客戶")
+PRESET_DATA = {
+    "自訂輸入": {
+        "irr_trend": "manual", 
+        "data": []
+    },
+    "🟢 競品 F (富x人壽-美利xx)": {
+        "irr_trend": "前期高，後期平緩",
+        # 模擬數據：第1-30年的現金價值 (假設累積保費是6萬)
+        "data": [
+            0, 15000, 28000, 41000, 55000, 68000, # 1-6年
+            71000, 73500, 76000, 78800,           # 7-10年
+            81500, 84200, 87000, 90000, 93000,    # 11-15年
+            96200, 99500, 103000, 106500, 110000, # 16-20年
+            113800, 117800, 121900, 126000, 130500, # 21-25年
+            135000, 140000, 145000, 150000, 155000  # 26-30年
+        ]
+    },
+    "🔵 競品 C (國x人壽-美金xx)": {
+        "irr_trend": "回本慢，長期複利強",
+        "data": [
+            0, 12000, 26000, 40000, 54000, 66000, # 1-6年
+            69000, 72000, 75500, 79000,           # 7-10年
+            82500, 86000, 89800, 93800, 98000,    # 11-15年
+            102000, 106500, 111000, 115800, 120800, # 16-20年
+            126000, 131500, 137000, 142800, 148800, # 21-25年
+            155000, 161500, 168000, 175000, 182000  # 26-30年
+        ]
+    },
+    "🟠 凱基主打 (美元傳承)": {
+        "irr_trend": "均衡型，第10年黃金交叉",
+        "data": [
+            0, 14000, 27500, 41500, 56000, 70500, # 1-6年 (繳費期贏競品C)
+            73000, 76000, 79500, 83000,           # 7-10年 (開始發力)
+            86500, 90500, 94500, 98800, 103200,   # 11-15年
+            107800, 112500, 117500, 122800, 128200, # 16-20年
+            134000, 140000, 146500, 153000, 160000, # 21-25年
+            167000, 174500, 182000, 190000, 198000  # 26-30年
+        ]
+    }
+}
 
 # ==========================================
-# 功能 2: 早安名片生成 (解決刷存在感痛點)
+# 側邊欄：基礎設定
 # ==========================================
-with tab2:
-    st.header("☀️ 專業形象日籤")
-    st.info("💡 每天早上 1 分鐘，製作帶有你名字的專業問候圖。")
+with st.sidebar:
+    st.header("⚡ 快速載入設定")
     
-    # 輸入區
-    agent_name = st.text_input("你的大名", value="陳奕仲")
-    agent_title = st.text_input("職稱/單位", value="凱基人壽 經理")
-    phone = st.text_input("聯絡電話", value="0972-799-639")
-    
-    # 選擇金句
-    quotes = [
-        "早安！風險無法預測，但愛可以提早準備。",
-        "保險不是為了改變生活，而是防止生活被改變。",
-        "財富自由不是終點，而是讓你擁有選擇權的起點。",
-        "週一加油！堅持做對的事，時間會給你答案。",
-        "天氣轉涼，記得多添衣物，保重身體！"
-    ]
-    selected_quote = st.selectbox("選擇今日金句", quotes)
-    
-    # 選擇背景風格 (這裡用顏色模擬，進階版可換圖)
-    theme_color = st.color_picker("選擇卡片主色調", "#E3F2FD")
+    # 下拉選單：選擇預設產品
+    selected_prod_a = st.selectbox("選擇【我方產品】(凱基)", list(PRESET_DATA.keys()), index=3)
+    selected_prod_b = st.selectbox("選擇【競品對手】", list(PRESET_DATA.keys()), index=1)
     
     st.markdown("---")
-    st.subheader("🖼️ 預覽結果 (請手機截圖)")
+    st.header("📝 參數微調")
+    years_to_pay = st.selectbox("繳費年期", [6, 10, 20], index=0)
+    annual_premium = st.number_input("年繳保費 (萬)", value=6)
     
-    # 使用 HTML/CSS 模擬一張卡片
-    card_html = f"""
-    <div style="
-        background-color: {theme_color};
-        padding: 30px;
-        border-radius: 15px;
-        border: 1px solid #ddd;
-        text-align: center;
-        box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
-    ">
-        <h3 style="color: #555; margin-bottom: 5px;">Good Morning</h3>
-        <hr style="border-top: 1px solid #bbb;">
-        <p style="font-size: 22px; font-weight: bold; color: #333; margin: 20px 0;">
-            “{selected_quote}”
-        </p>
-        <div style="margin-top: 30px; background-color: white; padding: 15px; border-radius: 10px;">
-            <p style="margin:0; font-weight:bold; font-size:18px;">{agent_name}</p>
-            <p style="margin:0; font-size:14px; color: #666;">{agent_title}</p>
-            <p style="margin:0; font-size:14px; color: #666;">📞 {phone}</p>
-        </div>
-    </div>
-    """
+    st.info("⚠️ 注意：內建數據為 DM 標準案例 (40歲男性)，僅供趨勢參考。如需精準數字，請於右側表格手動修正。")
+
+# ==========================================
+# 主畫面
+# ==========================================
+
+# 產生保費累積線 (基準線)
+years = list(range(1, 31))
+total_premiums = []
+current_prem = 0
+for y in years:
+    if y <= years_to_pay:
+        current_prem += annual_premium
+    total_premiums.append(current_prem)
+
+# 載入數據邏輯
+def get_data(prod_name):
+    if prod_name == "自訂輸入":
+        return [0] * 30
+    else:
+        # 這裡做一個簡單的比例縮放，如果使用者改了保費，數據也會跟著變
+        # 假設預設數據是基於 6 萬總保費算的
+        base_total_prem = 6 
+        current_total_prem = annual_premium * years_to_pay
+        ratio = current_total_prem / base_total_prem if base_total_prem > 0 else 1
+        
+        return [x * ratio for x in PRESET_DATA[prod_name]["data"]]
+
+cv_a = get_data(selected_prod_a)
+cv_b = get_data(selected_prod_b)
+
+# 建立 DataFrame
+df_init = pd.DataFrame({
+    "保單年度": years,
+    "累積實繳保費": total_premiums,
+    "我方現金價值": [int(x) for x in cv_a],
+    "競品現金價值": [int(x) for x in cv_b]
+})
+
+col1, col2 = st.columns([1, 2])
+
+# --- 左側：數據編輯區 ---
+with col1:
+    st.markdown('<div class="header-style">1. 數據微調</div>', unsafe_allow_html=True)
+    st.caption("數據已自動載入，您仍可點擊表格修改")
     
-    st.markdown(card_html, unsafe_allow_html=True)
-    st.caption("👆 手機直接截圖這張卡片，即可發送 LINE")
+    edited_df = st.data_editor(
+        df_init, 
+        height=600, 
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "保單年度": st.column_config.NumberColumn(format="%d 年"),
+            "累積實繳保費": st.column_config.NumberColumn(format="$%d 萬"),
+            "我方現金價值": st.column_config.NumberColumn(format="$%d 萬", required=True),
+            "競品現金價值": st.column_config.NumberColumn(format="$%d 萬", required=True),
+        }
+    )
+
+# --- 右側：分析結果區 ---
+with col2:
+    st.markdown('<div class="header-style">2. 趨勢PK圖表</div>', unsafe_allow_html=True)
+    
+    fig = go.Figure()
+    
+    # 累積保費線
+    fig.add_trace(go.Scatter(
+        x=edited_df["保單年度"], y=edited_df["累積實繳保費"],
+        mode='lines', name='累積總繳保費',
+        line=dict(color='gray', width=2, dash='dash')
+    ))
+    
+    # 我方
+    fig.add_trace(go.Scatter(
+        x=edited_df["保單年度"], y=edited_df["我方現金價值"],
+        mode='lines+markers', name=f'🔵 {selected_prod_a}',
+        line=dict(color='#1f77b4', width=4)
+    ))
+    
+    # 競品
+    fig.add_trace(go.Scatter(
+        x=edited_df["保單年度"], y=edited_df["競品現金價值"],
+        mode='lines+markers', name=f'🔴 {selected_prod_b}',
+        line=dict(color='#d62728', width=3)
+    ))
+
+    fig.update_layout(
+        title="資產增長趨勢對比",
+        xaxis_title="保單年度",
+        yaxis_title="金額 (萬元)",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        hovermode="x unified",
+        height=400
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # 關鍵年度PK卡片
+    st.markdown("### 🏆 關鍵戰役")
+    
+    col_k1, col_k2, col_k3 = st.columns(3)
+    
+    # 取第10年
+    v10_a = edited_df.iloc[9]["我方現金價值"]
+    v10_b = edited_df.iloc[9]["競品現金價值"]
+    delta_10 = v10_a - v10_b
+    col_k1.metric("第 10 年差距", f"${delta_10}萬", delta="我方勝出" if delta_10 > 0 else "落後", delta_color="normal")
+    
+    # 取第20年
+    v20_a = edited_df.iloc[19]["我方現金價值"]
+    v20_b = edited_df.iloc[19]["競品現金價值"]
+    delta_20 = v20_a - v20_b
+    col_k2.metric("第 20 年差距", f"${delta_20}萬", delta="我方勝出" if delta_20 > 0 else "落後", delta_color="normal")
+    
+    # 取第30年
+    v30_a = edited_df.iloc[29]["我方現金價值"]
+    v30_b = edited_df.iloc[29]["競品現金價值"]
+    delta_30 = v30_a - v30_b
+    col_k3.metric("第 30 年差距", f"${delta_30}萬", delta="我方勝出" if delta_30 > 0 else "落後", delta_color="normal")
+
+    # 備註
+    st.warning("數據來源：系統內建標準 DM 案例 (40歲男性/6年期)。如需客製化，請直接修改左側表格數值。")
