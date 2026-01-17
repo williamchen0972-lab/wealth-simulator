@@ -1,127 +1,153 @@
 import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
+import plotly.express as px
 
 # 設定網頁配置
-st.set_page_config(page_title="複利的威力", layout="centered")
+st.set_page_config(page_title="保險業務超人工具箱", layout="mobile")
 
-def calculate_wealth(initial_wan, monthly_deposit, rate, years):
-    """
-    計算每年的資產變化
-    """
-    initial_principal = initial_wan * 10000
-    months = years * 12
-    monthly_rate = rate / 100 / 12
-    
-    data = []
-    
-    # 初始狀態 (第0年)
-    current_asset = initial_principal
-    current_principal = initial_principal
-    data.append({
-        "年": 0,
-        "總投入本金 (單利)": int(current_principal),
-        "複利後總資產": int(current_asset)
-    })
-    
-    # 開始逐月計算，但為了圖表簡潔，我們每年紀錄一次數據
-    for y in range(1, years + 1):
-        for _ in range(12):
-            # 複利公式：上個月餘額 * (1+月利率) + 本月投入
-            current_asset = current_asset * (1 + monthly_rate) + monthly_deposit
-            current_principal += monthly_deposit
-            
-        data.append({
-            "年": y,
-            "總投入本金 (單利)": int(current_principal),
-            "複利後總資產": int(current_asset)
-        })
-        
-    return pd.DataFrame(data)
-
-# --- 側邊欄輸入區 ---
-st.sidebar.header("⚙️ 參數設定")
-
-initial_wan = st.sidebar.number_input(
-    "初始本金 (萬)", 
-    min_value=0, 
-    value=10, 
-    step=1,
-    help="客戶目前手邊已有的單筆資金"
-)
-
-monthly_deposit = st.sidebar.number_input(
-    "每月投入金額 (元)", 
-    min_value=0, 
-    value=5000, 
-    step=1000,
-    help="客戶計畫每月定期定額存入的金額"
-)
-
-rate = st.sidebar.slider(
-    "年化報酬率 (%)", 
-    min_value=1, 
-    max_value=15, 
-    value=5,
-    format="%d%%"
-)
-
-years = st.sidebar.slider(
-    "投資年期 (年)", 
-    min_value=1, 
-    max_value=50, 
-    value=20
-)
-
-# --- 主畫面 ---
-st.title("📈 複利的威力 - 財富增長模擬器")
-st.markdown("---")
-
-# 計算數據
-df = calculate_wealth(initial_wan, monthly_deposit, rate, years)
-
-# 取得最終數值
-final_principal = df.iloc[-1]["總投入本金 (單利)"]
-final_asset = df.iloc[-1]["複利後總資產"]
-gap = final_asset - final_principal
-
-# 顯示關鍵指標 (KPIs)
-col1, col2, col3 = st.columns(3)
-col1.metric("總投入本金", f"${final_principal:,.0f}")
-col2.metric("複利後總資產", f"${final_asset:,.0f}")
-col3.metric("時間創造的財富", f"${gap:,.0f}", delta="額外獲利", delta_color="normal")
-
-st.markdown("### 📊 資產增長趨勢圖")
-
-# 繪製圖表
-# Streamlit 的 line_chart 會自動根據 column 分不同顏色
-st.line_chart(
-    df.set_index("年")[["總投入本金 (單利)", "複利後總資產"]],
-    color=["#FF4B4B", "#00CC96"]  # 設定顏色：本金(紅/警示)，資產(綠/獲利)
-)
-
-# --- AI 銷售金句區 ---
-st.markdown("---")
-st.subheader("💡 AI 財富洞察")
-
-# 動態生成金句
-if gap > 0:
-    st.info(f"👉 **看見了嗎？除了你自己存的錢，時間額外送了你 {gap:,.0f} 元的禮物！這就是「複利」幫你工作的結果。**")
-elif gap == 0:
-    st.warning("👉 目前還沒有產生複利效應，試著增加投入金額或時間看看？")
-else:
-    st.error("👉 參數設定可能有誤，資產不應低於本金。")
-
-# 頁尾
-st.markdown(
-    """
+# --- CSS 樣式優化 (讓手機版更好看) ---
+st.markdown("""
     <style>
-    .small-font {
-        font-size:12px;
-        color: gray;
+    .big-font { font-size:20px !important; font-weight: bold; }
+    .card {
+        background-color: #f0f2f6;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 10px;
         text-align: center;
     }
+    .greeting-text {
+        font-size: 24px;
+        color: #1f77b4;
+        font-family: "Microsoft JhengHei", sans-serif;
+    }
     </style>
-    <div class="small-font">此模擬僅供參考，實際報酬視市場狀況而定。</div>
-    """, 
-    unsafe_allow_html=True
-)
+    """, unsafe_allow_html=True)
+
+st.title("💼 保險業務超人工具箱")
+st.caption("專為台灣保險菁英設計的銷售神器")
+
+# 建立分頁
+tab1, tab2 = st.tabs(["⚔️ 保單 PK 擂台", "☀️ 早安名片生成"])
+
+# ==========================================
+# 功能 1: 保單 PK 擂台 (解決競品比較痛點)
+# ==========================================
+with tab1:
+    st.header("產品優勢對決")
+    st.info("💡 輸入兩張保單的關鍵數據，立刻生成對比圖表，讓客戶一眼看出優勢！")
+
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("🛡️ 我方產品 (凱基)")
+        p1_name = st.text_input("產品名稱 A", value="凱基-美元傳承")
+        p1_irr = st.number_input("預估 IRR (%)", value=3.8, key="p1_irr")
+        p1_premium = st.number_input("總繳保費 (萬)", value=100, key="p1_prem")
+        p1_protection = st.number_input("身故保障 (萬)", value=350, key="p1_prot")
+        
+    with col2:
+        st.subheader("⚔️ 他家產品 (競品)")
+        p2_name = st.text_input("產品名稱 B", value="他牌-美元儲蓄")
+        p2_irr = st.number_input("預估 IRR (%)", value=3.2, key="p2_irr")
+        p2_premium = st.number_input("總繳保費 (萬)", value=100, key="p2_prem")
+        p2_protection = st.number_input("身故保障 (萬)", value=300, key="p2_prot")
+
+    # 視覺化按鈕
+    if st.button("🚀 生成 PK 分析圖"):
+        st.markdown("---")
+        
+        # 1. 關鍵指標長條圖
+        categories = ['預估 IRR (%)', '槓桿倍數 (保障/保費)']
+        
+        # 計算槓桿
+        lev1 = p1_protection / p1_premium if p1_premium > 0 else 0
+        lev2 = p2_protection / p2_premium if p2_premium > 0 else 0
+        
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            x=categories,
+            y=[p1_irr, lev1],
+            name=p1_name,
+            marker_color='#FF4B4B'
+        ))
+        fig.add_trace(go.Bar(
+            x=categories,
+            y=[p2_irr, lev2],
+            name=p2_name,
+            marker_color='#cccccc'
+        ))
+        
+        fig.update_layout(
+            title="關鍵指標對決",
+            barmode='group',
+            height=300
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # 2. 差異分析結論 (AI 話術)
+        diff_irr = p1_irr - p2_irr
+        diff_prot = p1_protection - p2_protection
+        
+        st.success(f"### 🏆 {p1_name} 勝出關鍵：")
+        if diff_irr > 0:
+            st.write(f"✅ **獲利能力更強：** 長期複利效果高出競品 **{diff_irr:.1f}%**，時間越長差距越大。")
+        if diff_prot > 0:
+            st.write(f"✅ **保障槓桿更高：** 同樣保費下，我們多送您 **{diff_prot} 萬** 的身故保障。")
+        
+        st.caption("截圖此畫面即可傳送給客戶")
+
+# ==========================================
+# 功能 2: 早安名片生成 (解決刷存在感痛點)
+# ==========================================
+with tab2:
+    st.header("☀️ 專業形象日籤")
+    st.info("💡 每天早上 1 分鐘，製作帶有你名字的專業問候圖。")
+    
+    # 輸入區
+    agent_name = st.text_input("你的大名", value="陳奕仲")
+    agent_title = st.text_input("職稱/單位", value="凱基人壽 經理")
+    phone = st.text_input("聯絡電話", value="0972-799-639")
+    
+    # 選擇金句
+    quotes = [
+        "早安！風險無法預測，但愛可以提早準備。",
+        "保險不是為了改變生活，而是防止生活被改變。",
+        "財富自由不是終點，而是讓你擁有選擇權的起點。",
+        "週一加油！堅持做對的事，時間會給你答案。",
+        "天氣轉涼，記得多添衣物，保重身體！"
+    ]
+    selected_quote = st.selectbox("選擇今日金句", quotes)
+    
+    # 選擇背景風格 (這裡用顏色模擬，進階版可換圖)
+    theme_color = st.color_picker("選擇卡片主色調", "#E3F2FD")
+    
+    st.markdown("---")
+    st.subheader("🖼️ 預覽結果 (請手機截圖)")
+    
+    # 使用 HTML/CSS 模擬一張卡片
+    card_html = f"""
+    <div style="
+        background-color: {theme_color};
+        padding: 30px;
+        border-radius: 15px;
+        border: 1px solid #ddd;
+        text-align: center;
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+    ">
+        <h3 style="color: #555; margin-bottom: 5px;">Good Morning</h3>
+        <hr style="border-top: 1px solid #bbb;">
+        <p style="font-size: 22px; font-weight: bold; color: #333; margin: 20px 0;">
+            “{selected_quote}”
+        </p>
+        <div style="margin-top: 30px; background-color: white; padding: 15px; border-radius: 10px;">
+            <p style="margin:0; font-weight:bold; font-size:18px;">{agent_name}</p>
+            <p style="margin:0; font-size:14px; color: #666;">{agent_title}</p>
+            <p style="margin:0; font-size:14px; color: #666;">📞 {phone}</p>
+        </div>
+    </div>
+    """
+    
+    st.markdown(card_html, unsafe_allow_html=True)
+    st.caption("👆 手機直接截圖這張卡片，即可發送 LINE")
